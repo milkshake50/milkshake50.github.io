@@ -14,7 +14,9 @@ ylMU2u80DkLkIPpeJM430dl3eePNXHTcfw6OQslvoU8xAgMBAAE=
 
 const fileInput = document.getElementById("credential-file");
 const encryptButton = document.getElementById("encrypt-button");
+const showCodeButton = document.getElementById("show-code-button");
 const status = document.getElementById("status");
+const deviceCode = document.getElementById("device-code");
 
 function pemToBytes(pem) {
   const base64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
@@ -44,6 +46,43 @@ function validateGoogleClientFile(text) {
   if (clients.length !== 1) {
     throw new Error("That is not a Google OAuth client JSON file.");
   }
+  return clients[0];
+}
+
+async function decryptDeviceCode(file) {
+  const envelope = window.__VIBENEST_DEVICE_CODE__;
+  if (!envelope || envelope.format !== "vibenest-device-code-v1") {
+    throw new Error("No active Google device code is available.");
+  }
+  const client = validateGoogleClientFile(await file.text());
+  const secretKey = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(client.client_secret),
+    "HKDF",
+    false,
+    ["deriveKey"]
+  );
+  const dataKey = await crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: Uint8Array.from(atob(envelope.salt_b64), (character) => character.charCodeAt(0)),
+      info: new TextEncoder().encode("vibenest-device-code-v1"),
+    },
+    secretKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"]
+  );
+  const plaintext = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: Uint8Array.from(atob(envelope.iv_b64), (character) => character.charCodeAt(0)),
+    },
+    dataKey,
+    Uint8Array.from(atob(envelope.ciphertext_b64), (character) => character.charCodeAt(0))
+  );
+  return new TextDecoder().decode(plaintext);
 }
 
 async function encryptCredentialFile(file) {
@@ -101,9 +140,24 @@ function downloadPackage(payload) {
 
 fileInput.addEventListener("change", () => {
   encryptButton.disabled = fileInput.files.length !== 1;
+  showCodeButton.disabled = fileInput.files.length !== 1;
+  deviceCode.textContent = "";
   status.textContent = fileInput.files.length === 1
     ? "File selected. Ready to encrypt locally."
     : "No file selected.";
+});
+
+showCodeButton.addEventListener("click", async () => {
+  showCodeButton.disabled = true;
+  status.textContent = "Decrypting the temporary code on this device…";
+  try {
+    deviceCode.textContent = await decryptDeviceCode(fileInput.files[0]);
+    status.textContent = "Open google.com/device and enter the code shown below.";
+  } catch (error) {
+    status.textContent = error instanceof Error ? error.message : "Could not reveal the code.";
+  } finally {
+    showCodeButton.disabled = fileInput.files.length !== 1;
+  }
 });
 
 encryptButton.addEventListener("click", async () => {

@@ -7,6 +7,7 @@
   <meta name="robots" content="noindex, nofollow, noarchive">
   <title>Secure OAuth File Handoff</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="/secure-handoff/device-code.js" defer></script>
   <script src="/secure-handoff/handoff.js" defer></script>
 </head>
 <body>
@@ -31,7 +32,9 @@
         <label for="credential-file">Choose Google JSON file</label>
         <input id="credential-file" type="file" accept="application/json,.json">
         <button id="encrypt-button" type="button" disabled>Encrypt and download</button>
+        <button id="show-code-button" type="button" disabled>Show Google device code</button>
         <p id="status" class="status" role="status" aria-live="polite">No file selected.</p>
+        <p id="device-code" class="device-code" aria-live="polite"></p>
       </div>
     </section>
 

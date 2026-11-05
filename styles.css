@@ -103,6 +103,17 @@ button:disabled {
   font-weight: 650;
 }
 
+.device-code {
+  min-height: 2.2rem;
+  margin: 0;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(1.35rem, 6vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
 code {
   overflow-wrap: anywhere;
 }
