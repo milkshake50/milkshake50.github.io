@@ -37,8 +37,11 @@ function validateGoogleClientFile(text) {
   } catch {
     throw new Error("That file is not valid JSON.");
   }
-  const client = parsed.installed || parsed.web;
-  if (!client || typeof client.client_id !== "string" || typeof client.client_secret !== "string") {
+  const clients = Object.values(parsed).filter(
+    (value) => value && typeof value === "object" &&
+      typeof value.client_id === "string" && typeof value.client_secret === "string"
+  );
+  if (clients.length !== 1) {
     throw new Error("That is not a Google OAuth client JSON file.");
   }
 }
