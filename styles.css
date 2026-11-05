@@ -55,6 +55,58 @@ nav {
   border-top: 1px solid var(--line);
 }
 
+.notice {
+  padding: 1rem 1.25rem;
+  background: #eef8f4;
+  border: 1px solid #bcd9d0;
+  border-radius: 12px;
+}
+
+.notice h2 { margin-top: 0; }
+
+.handoff-form {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1.5rem;
+}
+
+.handoff-form label { font-weight: 700; }
+
+input[type="file"] {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+button {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.status {
+  min-height: 1.65em;
+  margin: 0;
+  font-weight: 650;
+}
+
+code {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 520px) {
   main { margin: 16px auto; border-radius: 14px; }
 }

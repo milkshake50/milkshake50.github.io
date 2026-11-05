@@ -1,0 +1,118 @@
+"use strict";
+
+const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA0Vg9rS6vEsSGZo6gVlso
+xZemInAxBOQhpOwCP3+9CLHukkhF9dhSquoNec84Eo5gkzzrtL5HYMhQvX+O3nuK
+nmBmzqN3sVSZodvUhnbcriSQ1pOEbI7XvT47loP/ER/+wfeAcvb4IWXHQ/YKuzBr
+t4kpxOSnlANPNVwwieF/pqC34i9qGCeeJJDsDEGLydYBBJwy/SNW19eml/ARifxi
+kDbBWiiMua0BaHLEAr0aSy4NE9Ao2VeelEVvo9BF7e37RHoC6ppmQXIS7q1VWvRU
+K4k5URVl8qTVr1eeqvuUiLDhsox1R6xZv2kXJXbAN7a5pbKLUtdDcH9MAGYycGhF
+1Wb6ksYznoMqaug57W9u287pgt688/oMlQchG2hGkb4In+N4i8Mb248bF6MkcV0r
+itf7+q4DwEnCR4THMJ+ilCC22IjS387VDBkkZEWXTF0HjZLjixjtcMcYMqNs0Esh
+ylMU2u80DkLkIPpeJM430dl3eePNXHTcfw6OQslvoU8xAgMBAAE=
+-----END PUBLIC KEY-----`;
+
+const fileInput = document.getElementById("credential-file");
+const encryptButton = document.getElementById("encrypt-button");
+const status = document.getElementById("status");
+
+function pemToBytes(pem) {
+  const base64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function validateGoogleClientFile(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("That file is not valid JSON.");
+  }
+  const client = parsed.installed || parsed.web;
+  if (!client || typeof client.client_id !== "string" || typeof client.client_secret !== "string") {
+    throw new Error("That is not a Google OAuth client JSON file.");
+  }
+}
+
+async function encryptCredentialFile(file) {
+  if (!window.crypto || !window.crypto.subtle) {
+    throw new Error("This browser does not support secure local encryption.");
+  }
+  if (file.size < 20 || file.size > 65536) {
+    throw new Error("The selected file size is not valid for a Google OAuth client JSON file.");
+  }
+  const plaintext = new Uint8Array(await file.arrayBuffer());
+  validateGoogleClientFile(new TextDecoder().decode(plaintext));
+
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    pemToBytes(PUBLIC_KEY_PEM),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["wrapKey"]
+  );
+  const dataKey = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt"]
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, dataKey, plaintext)
+  );
+  const wrappedKey = new Uint8Array(
+    await crypto.subtle.wrapKey("raw", dataKey, publicKey, { name: "RSA-OAEP" })
+  );
+  return {
+    format: "hermes-oauth-handoff-v1",
+    key_algorithm: "RSA-OAEP-3072-SHA256",
+    data_algorithm: "AES-256-GCM",
+    wrapped_key_b64: bytesToBase64(wrappedKey),
+    iv_b64: bytesToBase64(iv),
+    ciphertext_b64: bytesToBase64(ciphertext),
+  };
+}
+
+function downloadPackage(payload) {
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "vibenest-oauth-client.encrypted.json";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+fileInput.addEventListener("change", () => {
+  encryptButton.disabled = fileInput.files.length !== 1;
+  status.textContent = fileInput.files.length === 1
+    ? "File selected. Ready to encrypt locally."
+    : "No file selected.";
+});
+
+encryptButton.addEventListener("click", async () => {
+  encryptButton.disabled = true;
+  status.textContent = "Encrypting on this device…";
+  try {
+    const payload = await encryptCredentialFile(fileInput.files[0]);
+    downloadPackage(payload);
+    status.textContent = "Encrypted file downloaded. Send only the encrypted file to Hermes.";
+  } catch (error) {
+    status.textContent = error instanceof Error ? error.message : "Encryption failed.";
+  } finally {
+    encryptButton.disabled = fileInput.files.length !== 1;
+  }
+});
